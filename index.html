@@ -1,1 +1,207 @@
-<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Welcome</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            background-color: #f0f0f0;\n            color: #333;\n            padding: 20px;\n            text-align: center;\n        }\n        h1 {\n            color: #4CAF50;\n        }\n    </style>\n</head>\n<body>\n    <h1>Welcome to My Website!</h1>\n    <p>This is a simple webpage created as a demo.</p>\n</body>\n</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>挪威的森林 - 阅读器</title>
+    <!-- 引入 JSZip 和 ePub.js 核心库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
+    <style>
+        :root {
+            /* 纸张质感配色 */
+            --bg-color: #f5f4ee; 
+            --page-bg: #fdfcf8;
+            --text-color: #2c2b29;
+            --font-family: 'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: var(--font-family);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 顶部信息栏 */
+        #top-bar {
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: #888;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(0,0,0,0.03);
+        }
+
+        #title-display {
+            font-weight: bold;
+            color: #555;
+        }
+
+        /* 阅读器主容器 */
+        #viewer-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        #viewer {
+            width: 100%;
+            max-width: 860px;
+            height: 100%;
+            background-color: var(--page-bg);
+            box-shadow: 0 0 30px rgba(0,0,0,0.02);
+            position: relative;
+        }
+
+        /* 翻页触控区 */
+        .nav-area {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 25%;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.3s ease;
+            -webkit-tap-highlight-color: transparent; /* 移除手机端点击高亮 */
+        }
+        #prev { left: 0; }
+        #next { right: 0; }
+        .nav-area:hover {
+            background: rgba(0,0,0,0.015);
+        }
+
+        /* 加载动画 */
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #999;
+            font-size: 14px;
+            letter-spacing: 2px;
+            pointer-events: none;
+        }
+
+        /* 错误提示框 */
+        #error-msg {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--page-bg);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            text-align: center;
+            border: 1px solid #eee;
+            color: #d32f2f;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="top-bar">
+        <span id="title-display">正在加载...</span>
+        <span id="progress-display"></span>
+    </div>
+
+    <div id="viewer-container">
+        <div id="viewer"></div>
+        <div id="loading">加载中...</div>
+        
+        <!-- 如果加载失败（比如文件名不对）会显示这个 -->
+        <div id="error-msg">
+            加载失败 🥲<br><br>
+            <span style="color:#666; font-size:14px;">请检查 GitHub 仓库中是否有 <b>book.epub</b> 文件，<br>且与 reader.html 在同一级目录下。</span>
+        </div>
+
+        <!-- 左右翻页热区 -->
+        <div id="prev" class="nav-area"></div>
+        <div id="next" class="nav-area"></div>
+    </div>
+
+    <script>
+        // 对应你在 GitHub 仓库里重命名的文件
+        const targetFilename = "book.epub"; 
+        let book = null;
+        let rendition = null;
+
+        const viewer = document.getElementById('viewer');
+        const loading = document.getElementById('loading');
+        const errorMsg = document.getElementById('error-msg');
+        const titleDisplay = document.getElementById('title-display');
+
+        function initRendition(epubBook) {
+            // 设置渲染器
+            rendition = epubBook.renderTo("viewer", {
+                width: "100%",
+                height: "100%",
+                spread: "none" // 强制单页显示，更适合手机或窄屏
+            });
+
+            // 注入“自然阅读”的 CSS 样式
+            rendition.themes.default({
+                "body": {
+                    "background": "transparent !important",
+                    "font-family": "'Source Han Serif SC', 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif !important",
+                    "color": "#2c2b29 !important",
+                    "line-height": "1.8 !important",
+                    "padding": "20px 40px !important",
+                    "text-align": "justify",
+                    "font-size": "18px"
+                },
+                "p": {
+                    "text-indent": "2em",
+                    "margin-bottom": "1em"
+                },
+                "h1, h2, h3": {
+                    "font-family": "inherit",
+                    "color": "#333 !important",
+                    "text-align": "center"
+                }
+            });
+
+            // 渲染完毕后隐藏加载文字
+            rendition.display().then(() => {
+                loading.style.display = 'none';
+                titleDisplay.innerText = "挪威的森林 - 村上春树";
+            });
+
+            // 翻页逻辑（点击两侧屏幕）
+            document.getElementById('prev').addEventListener('click', () => rendition.prev());
+            document.getElementById('next').addEventListener('click', () => rendition.next());
+
+            // 键盘左右键翻页
+            document.addEventListener('keyup', (e) => {
+                if(e.key === "ArrowLeft") rendition.prev();
+                if(e.key === "ArrowRight") rendition.next();
+            });
+        }
+
+        // 直接从网络请求加载 book.epub
+        book = ePub(targetFilename);
+        
+        book.ready.then(() => {
+            initRendition(book);
+        }).catch((err) => {
+            console.error("电子书加载失败:", err);
+            loading.style.display = 'none';
+            errorMsg.style.display = 'block';
+        });
+
+    </script>
+</body>
+</html>
