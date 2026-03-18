@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>挪威的森林 - 阅读器</title>
-    <!-- 引入 JSZip 和 ePub.js 核心库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.5/jszip.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/epubjs/dist/epub.min.js"></script>
     <style>
@@ -38,6 +37,8 @@
             color: #888;
             letter-spacing: 1px;
             border-bottom: 1px solid rgba(0,0,0,0.03);
+            background: var(--bg-color);
+            z-index: 101; /* 确保在最上方 */
         }
 
         #title-display {
@@ -53,6 +54,7 @@
             position: relative;
             width: 100%;
             height: 100%;
+            overflow: auto; /* 允许连续滚动 */
         }
 
         #viewer {
@@ -62,23 +64,6 @@
             background-color: var(--page-bg);
             box-shadow: 0 0 30px rgba(0,0,0,0.02);
             position: relative;
-        }
-
-        /* 翻页触控区 */
-        .nav-area {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 25%;
-            cursor: pointer;
-            z-index: 10;
-            transition: background 0.3s ease;
-            -webkit-tap-highlight-color: transparent; /* 移除手机端点击高亮 */
-        }
-        #prev { left: 0; }
-        #next { right: 0; }
-        .nav-area:hover {
-            background: rgba(0,0,0,0.015);
         }
 
         /* 加载动画 */
@@ -91,6 +76,7 @@
             font-size: 14px;
             letter-spacing: 2px;
             pointer-events: none;
+            z-index: 99;
         }
 
         /* 错误提示框 */
@@ -122,34 +108,29 @@
         <div id="viewer"></div>
         <div id="loading">加载中...</div>
         
-        <!-- 如果加载失败（比如文件名不对）会显示这个 -->
         <div id="error-msg">
             加载失败 🥲<br><br>
             <span style="color:#666; font-size:14px;">请检查 GitHub 仓库中是否有 <b>book.epub</b> 文件，<br>且与 reader.html 在同一级目录下。</span>
         </div>
-
-        <!-- 左右翻页热区 -->
-        <div id="prev" class="nav-area"></div>
-        <div id="next" class="nav-area"></div>
     </div>
 
     <script>
-        // 对应你在 GitHub 仓库里重命名的文件
         const targetFilename = "book.epub"; 
         let book = null;
         let rendition = null;
 
-        const viewer = document.getElementById('viewer');
+        const viewerContainer = document.getElementById('viewer-container');
         const loading = document.getElementById('loading');
         const errorMsg = document.getElementById('error-msg');
         const titleDisplay = document.getElementById('title-display');
 
         function initRendition(epubBook) {
-            // 设置渲染器
+            // 设置渲染器：改为 continuous 模式，启用垂直滚动
             rendition = epubBook.renderTo("viewer", {
+                manager: "continuous",
+                flow: "scrolled",
                 width: "100%",
-                height: "100%",
-                spread: "none" // 强制单页显示，更适合手机或窄屏
+                height: "100%"
             });
 
             // 注入“自然阅读”的 CSS 样式
@@ -161,7 +142,9 @@
                     "line-height": "1.8 !important",
                     "padding": "20px 40px !important",
                     "text-align": "justify",
-                    "font-size": "18px"
+                    "font-size": "18px",
+                    "max-width": "860px",
+                    "margin": "0 auto"
                 },
                 "p": {
                     "text-indent": "2em",
@@ -174,17 +157,22 @@
                 }
             });
 
-            // 渲染完毕后隐藏加载文字
+            // 渲染完毕
             rendition.display().then(() => {
                 loading.style.display = 'none';
                 titleDisplay.innerText = "挪威的森林 - 村上春树";
             });
 
-            // 翻页逻辑（点击两侧屏幕）
-            document.getElementById('prev').addEventListener('click', () => rendition.prev());
-            document.getElementById('next').addEventListener('click', () => rendition.next());
+            // 简化翻页方案2：全屏点击前进
+            // 在 scrolled 模式下，rendition.next() 将通过滚动来推进内容
+            viewerContainer.addEventListener('click', (e) => {
+                // 如果是电脑端，点击事件可能会在iframe内部触发，
+                // ePub.js 默认会处理 scrolled 模式下的滚动。
+                // 这里的点击事件主要是作为一个备用机制。
+                rendition.next();
+            });
 
-            // 键盘左右键翻页
+            // 键盘左右键仍保留为前进/后退
             document.addEventListener('keyup', (e) => {
                 if(e.key === "ArrowLeft") rendition.prev();
                 if(e.key === "ArrowRight") rendition.next();
